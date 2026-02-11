@@ -6,65 +6,253 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <style>
-body { margin:0; padding:0; font-family:Arial, sans-serif; }
-#map { position:absolute; top:0; bottom:0; left:0; right:320px; }
-#sidebar { position:absolute; right:0; top:0; bottom:0; width:320px; padding:12px; background:#f7f7f7; overflow:auto; border-left:1px solid #ccc; }
-.btn { display:inline-block; padding:6px 10px; margin:3px 2px; background:#2a9df4; color:white; border-radius:4px; text-decoration:none; cursor:pointer; font-size:13px; }
-.btn.small { padding:3px 6px; font-size:12px; }
-input[type=text], textarea { width:100%; box-sizing:border-box; padding:6px; margin:3px 0; }
-.waypoint-item { border-bottom:1px dashed #ccc; padding:4px; margin-bottom:4px; }
-.waypoint-actions { margin-top:4px; }
-.small { font-size:12px; color:#666; }
-#speedInput { width:60px; display:inline-block; }
-#routeSummary { font-size:12px; margin-top:6px; }
+body { 
+  margin: 0; 
+  padding: 0; 
+  font-family: Arial, sans-serif;
+  overflow: hidden;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+#map { 
+  flex: 0 0 65vh;
+  width: 100%;
+  position: relative;
+}
+
+#sidebar { 
+  flex: 1;
+  width: 100%;
+  padding: 16px;
+  background: #f7f7f7;
+  overflow-y: auto;
+  border-top: 2px solid #2a9df4;
+  box-sizing: border-box;
+}
+
 #credit {
-  position:absolute;
-  bottom:8px;
-  right:330px;
-  background:rgba(255,255,255,0.8);
-  font-size:12px;
-  color:#333;
-  padding:4px 8px;
-  border-radius:4px;
-  border:1px solid #ccc;
-  font-weight:bold;
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(255,255,255,0.9);
+  font-size: 13px;
+  color: #333;
+  padding: 6px 12px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  font-weight: bold;
+  z-index: 1000;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.controls-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.control-section {
+  background: white;
+  padding: 12px;
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.control-section h4 {
+  margin: 0 0 10px 0;
+  font-size: 14px;
+  color: #333;
+  border-bottom: 2px solid #2a9df4;
+  padding-bottom: 4px;
+}
+
+.btn { 
+  display: inline-block; 
+  padding: 8px 14px; 
+  margin: 4px 3px; 
+  background: #2a9df4; 
+  color: white; 
+  border-radius: 5px; 
+  text-decoration: none; 
+  cursor: pointer; 
+  font-size: 14px;
+  border: none;
+  transition: background 0.2s;
+}
+
+.btn:hover {
+  background: #1f7fc7;
+}
+
+.btn.small { 
+  padding: 4px 8px; 
+  font-size: 12px;
+  margin: 2px;
+}
+
+input[type=text], textarea { 
+  width: 100%; 
+  box-sizing: border-box; 
+  padding: 8px; 
+  margin: 4px 0;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.waypoint-list-container {
+  max-height: 200px;
+  overflow-y: auto;
+  background: white;
+  padding: 8px;
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.waypoint-item { 
+  border-bottom: 1px dashed #ccc; 
+  padding: 8px; 
+  margin-bottom: 6px;
+  background: #fafafa;
+  border-radius: 4px;
+}
+
+.waypoint-item:last-child {
+  border-bottom: none;
+}
+
+.waypoint-actions { 
+  margin-top: 6px;
+}
+
+.small { 
+  font-size: 12px; 
+  color: #666; 
+}
+
+#speedInput { 
+  width: 80px; 
+  display: inline-block;
+}
+
+#routeSummary { 
+  font-size: 13px; 
+  margin-top: 8px;
+  padding: 10px;
+  background: white;
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.jump-to-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.route-controls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.import-export-controls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.section-header {
+  margin: 16px 0 8px 0;
+  font-size: 15px;
+  font-weight: bold;
+  color: #2a9df4;
+}
+
+#coordsOut {
+  padding: 8px;
+  background: white;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  margin-top: 8px;
+}
+
+/* Responsive adjustments for iPad landscape */
+@media (orientation: landscape) and (min-width: 800px) {
+  #map {
+    flex: 0 0 68vh;
+  }
+  
+  .controls-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
 }
 </style>
 </head>
 <body>
 
-<div id="map"></div>
-<div id="credit">MADE BY LT CDR SADMAN, P NO 3223</div>
+<div id="map">
+  <div id="credit">MADE BY LT CDR SADMAN, P NO 3223</div>
+</div>
 
 <div id="sidebar">
-  <h3>Waypoint Tool</h3>
-  <small class="small">Click map to add waypoint. Click waypoint to select/edit.</small>
-
-  <label>Jump to (lat,lon):</label>
-  <input id="latIn" placeholder="Latitude" />
-  <input id="lonIn" placeholder="Longitude" />
-  <a id="goBtn" class="btn">Go/Add</a>
-
-  <h4>Waypoints</h4>
-  <div id="list"></div>
-
-  <div>
-    <label>Speed (knots for ETA):</label>
-    <input id="speedInput" placeholder="kn" type="text"/>
-  </div>
-  <div style="margin-top:6px;">
-    <a id="routeBtn" class="btn">Route selected</a>
-    <a id="clearRouteBtn" class="btn" style="background:#999">Clear route</a>
+  <div style="text-align: center; margin-bottom: 12px;">
+    <h3 style="margin: 0 0 4px 0; color: #2a9df4;">Waypoint Tool</h3>
+    <small class="small">Click map to add waypoint • Click waypoint to select/edit</small>
   </div>
 
-  <h4>Import/Export</h4>
-  <a id="saveBtn" class="btn" style="background:#28a745">Save</a>
-  <a id="exportBtn" class="btn" style="background:#6c757d">Export JSON</a>
-  <a id="importBtn" class="btn" style="background:#ffc107">Import</a>
-  <textarea id="jsonArea" rows="4" placeholder="Paste JSON here"></textarea>
+  <div class="controls-grid">
+    <!-- Jump To Section -->
+    <div class="control-section">
+      <h4>📍 Jump To Location</h4>
+      <div class="jump-to-grid">
+        <input id="latIn" placeholder="Latitude" type="text"/>
+        <input id="lonIn" placeholder="Longitude" type="text"/>
+        <a id="goBtn" class="btn">Go/Add</a>
+      </div>
+    </div>
 
-  <h4>Coords:</h4>
-  <div id="coordsOut" class="small">None</div>
+    <!-- Speed & Route Section -->
+    <div class="control-section">
+      <h4>✈️ Route Planning</h4>
+      <div style="margin-bottom: 8px;">
+        <label style="font-size: 13px;">Speed (knots):</label>
+        <input id="speedInput" placeholder="kn" type="text" value=""/>
+      </div>
+      <div class="route-controls">
+        <a id="routeBtn" class="btn">Route Selected</a>
+        <a id="clearRouteBtn" class="btn" style="background:#999">Clear Route</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Waypoints List -->
+  <div class="section-header">📋 Waypoints List</div>
+  <div class="waypoint-list-container">
+    <div id="list"></div>
+  </div>
+
+  <!-- Import/Export -->
+  <div class="section-header">💾 Import/Export</div>
+  <div class="import-export-controls">
+    <a id="saveBtn" class="btn" style="background:#28a745">💾 Save</a>
+    <a id="exportBtn" class="btn" style="background:#6c757d">📥 Export JSON</a>
+    <a id="importBtn" class="btn" style="background:#ffc107">📤 Import</a>
+  </div>
+  <textarea id="jsonArea" rows="3" placeholder="Paste JSON here for import"></textarea>
+
+  <!-- Coordinates Display -->
+  <div class="section-header">🎯 Current Coordinates</div>
+  <div id="coordsOut" class="small">Click on map to see coordinates</div>
+  
+  <!-- Route Summary -->
   <div id="routeSummary" class="small"></div>
 </div>
 
@@ -89,6 +277,10 @@ const routeSummaryDiv = document.getElementById('routeSummary');
 // --- FUNCTIONS ---
 function renderList(){
   listDiv.innerHTML = '';
+  if(waypoints.length === 0) {
+    listDiv.innerHTML = '<div class="small" style="text-align:center; padding:20px; color:#999;">No waypoints yet. Click on map to add.</div>';
+    return;
+  }
   waypoints.forEach(w=>{
     const div = document.createElement('div');
     div.className = 'waypoint-item';
@@ -96,9 +288,9 @@ function renderList(){
       <b>${w.name}</b><br>
       <span class="small">${w.lat.toFixed(5)}, ${w.lon.toFixed(5)}</span>
       <div class="waypoint-actions">
-        <a class="btn small" onclick="editWaypoint(${w.id})">✏️</a>
-        <a class="btn small" style="background:#dc3545" onclick="deleteWaypoint(${w.id})">🗑️</a>
-        <a class="btn small" style="background:#6f42c1" onclick="selectWaypoint(${w.id})">🎯</a>
+        <a class="btn small" onclick="editWaypoint(${w.id})">✏️ Edit</a>
+        <a class="btn small" style="background:#dc3545" onclick="deleteWaypoint(${w.id})">🗑️ Delete</a>
+        <a class="btn small" style="background:#6f42c1" onclick="selectWaypoint(${w.id})">🎯 Select</a>
       </div>
     `;
     listDiv.appendChild(div);
@@ -183,7 +375,7 @@ function makeRoute(){
   let cumulativeTime=0;
   const speed=parseFloat(document.getElementById('speedInput').value)||0;
 
-  routeSummaryDiv.innerHTML='';
+  routeSummaryDiv.innerHTML='<div class="section-header">📊 Route Summary</div>';
   for(let i=0;i<selected.length-1;i++){
     const a=waypoints.find(w=>w.id===selected[i]);
     const b=waypoints.find(w=>w.id===selected[i+1]);
@@ -194,7 +386,7 @@ function makeRoute(){
     const brg=bearing(a.lat,a.lon,b.lat,b.lon);
     routeSummaryDiv.innerHTML+=`<b>${a.name} → ${b.name}</b>: ${dist.toFixed(2)} NM, ${brg.toFixed(1)}°, Leg Time: ${time.toFixed(1)} min<br>`;
   }
-  routeSummaryDiv.innerHTML+=`<b>Total:</b> ${cumulativeDistance.toFixed(2)} NM, ${cumulativeTime.toFixed(1)} min`;
+  routeSummaryDiv.innerHTML+=`<br><b>Total Distance:</b> ${cumulativeDistance.toFixed(2)} NM<br><b>Total Time:</b> ${cumulativeTime.toFixed(1)} min`;
 
   routeLayer.on('click',function(e){
     addCheckpoint(e.latlng);
@@ -244,24 +436,36 @@ map.on('click',e=>{
 
 document.getElementById('goBtn').onclick=()=>{
   const lat=parseFloat(latIn.value),lon=parseFloat(lonIn.value);
-  if(isNaN(lat)||isNaN(lon)){alert('Invalid'); return;}
+  if(isNaN(lat)||isNaN(lon)){alert('Invalid coordinates'); return;}
   map.setView([lat,lon],Math.max(map.getZoom(),12));
   addWaypoint(lat,lon,'Manual');
+  latIn.value = '';
+  lonIn.value = '';
 };
 document.getElementById('routeBtn').onclick=makeRoute;
 document.getElementById('clearRouteBtn').onclick=clearRoute;
-document.getElementById('saveBtn').onclick=()=>{ saveLocal(); alert('Saved'); };
+document.getElementById('saveBtn').onclick=()=>{ saveLocal(); alert('Waypoints saved to browser storage!'); };
 document.getElementById('exportBtn').onclick=()=>{
   const blob=new Blob([JSON.stringify(waypoints,null,2)],{type:'application/json'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='waypoints.json'; a.click();
 };
 document.getElementById('importBtn').onclick=()=>{
-  try{ const arr=JSON.parse(document.getElementById('jsonArea').value); arr.forEach(w=>addWaypoint(w.lat,w.lon,w.name)); }
-  catch(e){alert('Invalid JSON');}
+  try{ 
+    const arr=JSON.parse(document.getElementById('jsonArea').value); 
+    arr.forEach(w=>addWaypoint(w.lat,w.lon,w.name)); 
+    document.getElementById('jsonArea').value = '';
+    alert('Waypoints imported successfully!');
+  }
+  catch(e){alert('Invalid JSON format');}
 };
 
 // INIT
 loadLocal();
+
+// Fix map size on load
+setTimeout(() => {
+  map.invalidateSize();
+}, 100);
 </script>
 </body>
 </html>
