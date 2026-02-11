@@ -1,0 +1,267 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Bangladesh Flight Map - Waypoints Pro</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+body { margin:0; padding:0; font-family:Arial, sans-serif; }
+#map { position:absolute; top:0; bottom:0; left:0; right:320px; }
+#sidebar { position:absolute; right:0; top:0; bottom:0; width:320px; padding:12px; background:#f7f7f7; overflow:auto; border-left:1px solid #ccc; }
+.btn { display:inline-block; padding:6px 10px; margin:3px 2px; background:#2a9df4; color:white; border-radius:4px; text-decoration:none; cursor:pointer; font-size:13px; }
+.btn.small { padding:3px 6px; font-size:12px; }
+input[type=text], textarea { width:100%; box-sizing:border-box; padding:6px; margin:3px 0; }
+.waypoint-item { border-bottom:1px dashed #ccc; padding:4px; margin-bottom:4px; }
+.waypoint-actions { margin-top:4px; }
+.small { font-size:12px; color:#666; }
+#speedInput { width:60px; display:inline-block; }
+#routeSummary { font-size:12px; margin-top:6px; }
+#credit {
+  position:absolute;
+  bottom:8px;
+  right:330px;
+  background:rgba(255,255,255,0.8);
+  font-size:12px;
+  color:#333;
+  padding:4px 8px;
+  border-radius:4px;
+  border:1px solid #ccc;
+  font-weight:bold;
+}
+</style>
+</head>
+<body>
+
+<div id="map"></div>
+<div id="credit">MADE BY LT CDR SADMAN, P NO 3223</div>
+
+<div id="sidebar">
+  <h3>Waypoint Tool</h3>
+  <small class="small">Click map to add waypoint. Click waypoint to select/edit.</small>
+
+  <label>Jump to (lat,lon):</label>
+  <input id="latIn" placeholder="Latitude" />
+  <input id="lonIn" placeholder="Longitude" />
+  <a id="goBtn" class="btn">Go/Add</a>
+
+  <h4>Waypoints</h4>
+  <div id="list"></div>
+
+  <div>
+    <label>Speed (knots for ETA):</label>
+    <input id="speedInput" placeholder="kn" type="text"/>
+  </div>
+  <div style="margin-top:6px;">
+    <a id="routeBtn" class="btn">Route selected</a>
+    <a id="clearRouteBtn" class="btn" style="background:#999">Clear route</a>
+  </div>
+
+  <h4>Import/Export</h4>
+  <a id="saveBtn" class="btn" style="background:#28a745">Save</a>
+  <a id="exportBtn" class="btn" style="background:#6c757d">Export JSON</a>
+  <a id="importBtn" class="btn" style="background:#ffc107">Import</a>
+  <textarea id="jsonArea" rows="4" placeholder="Paste JSON here"></textarea>
+
+  <h4>Coords:</h4>
+  <div id="coordsOut" class="small">None</div>
+  <div id="routeSummary" class="small"></div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const imageUrl = 'map.png';
+const bounds = [[21.00, 89.00],[24.00, 92.00]];
+
+const map = L.map('map', {minZoom:2, maxZoom:18}).fitBounds(bounds);
+L.imageOverlay(imageUrl, bounds).addTo(map);
+
+let waypoints = [];
+let markers = {};
+let selected = [];
+let routeLayer = null;
+let checkpointMarkers = [];
+
+const listDiv = document.getElementById('list');
+const coordsOut = document.getElementById('coordsOut');
+const routeSummaryDiv = document.getElementById('routeSummary');
+
+// --- FUNCTIONS ---
+function renderList(){
+  listDiv.innerHTML = '';
+  waypoints.forEach(w=>{
+    const div = document.createElement('div');
+    div.className = 'waypoint-item';
+    div.innerHTML = `
+      <b>${w.name}</b><br>
+      <span class="small">${w.lat.toFixed(5)}, ${w.lon.toFixed(5)}</span>
+      <div class="waypoint-actions">
+        <a class="btn small" onclick="editWaypoint(${w.id})">✏️</a>
+        <a class="btn small" style="background:#dc3545" onclick="deleteWaypoint(${w.id})">🗑️</a>
+        <a class="btn small" style="background:#6f42c1" onclick="selectWaypoint(${w.id})">🎯</a>
+      </div>
+    `;
+    listDiv.appendChild(div);
+  });
+}
+
+function addWaypoint(lat,lon,name){
+  const id = Date.now()+Math.floor(Math.random()*999);
+  const wp = {id,lat,lon,name:name||('WP-'+(waypoints.length+1))};
+  waypoints.push(wp);
+  const marker = L.circleMarker([lat,lon],{radius:6,color:'#f00',fillColor:'#f00',fillOpacity:0.9})
+    .addTo(map)
+    .bindPopup(`<b>${wp.name}</b><br>${lat.toFixed(5)}, ${lon.toFixed(5)}<br><a href="#" onclick="editWaypoint(${wp.id})">Edit</a>`);
+  marker.on('click',()=>selectWaypoint(wp.id));
+  markers[id]=marker;
+  renderList();
+  saveLocal();
+}
+
+function editWaypoint(id){
+  const wp = waypoints.find(w=>w.id===id);
+  if(!wp)return;
+  const newName = prompt('Rename waypoint:', wp.name);
+  if(newName!==null && newName.trim()!==''){ wp.name = newName.trim(); }
+  const newLat = prompt('Change latitude:', wp.lat);
+  const newLon = prompt('Change longitude:', wp.lon);
+  if(newLat && newLon && !isNaN(newLat) && !isNaN(newLon)){
+    wp.lat=parseFloat(newLat); wp.lon=parseFloat(newLon);
+    markers[id].setLatLng([wp.lat,wp.lon])
+      .bindPopup(`<b>${wp.name}</b><br>${wp.lat.toFixed(5)}, ${wp.lon.toFixed(5)}<br><a href="#" onclick="editWaypoint(${wp.id})">Edit</a>`);
+  }
+  renderList();
+  saveLocal();
+}
+
+function deleteWaypoint(id){
+  if(!confirm('Delete this waypoint?'))return;
+  waypoints=waypoints.filter(w=>w.id!==id);
+  map.removeLayer(markers[id]);
+  delete markers[id];
+  renderList();
+  saveLocal();
+}
+
+function selectWaypoint(id){
+  const idx = selected.indexOf(id);
+  if(idx===-1) selected.push(id);
+  else selected.splice(idx,1);
+  Object.keys(markers).forEach(k=>{
+    const mk=markers[k];
+    if(selected.includes(Number(k))) mk.setStyle({color:'#00f',fillColor:'#00f'});
+    else mk.setStyle({color:'#f00',fillColor:'#f00'});
+  });
+}
+
+// --- DISTANCE & BEARING ---
+function haversineNM(lat1,lon1,lat2,lon2){
+  const R=6371e3, toRad=v=>v*Math.PI/180;
+  const φ1=toRad(lat1),φ2=toRad(lat2),Δφ=toRad(lat2-lat1),Δλ=toRad(lon2-lon1);
+  const a=Math.sin(Δφ/2)**2+Math.cos(φ1)*Math.cos(φ2)*Math.sin(Δλ/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))/1852; // NM
+}
+function bearing(lat1,lon1,lat2,lon2){
+  const toRad=v=>v*Math.PI/180,toDeg=v=>v*180/Math.PI;
+  const φ1=toRad(lat1),φ2=toRad(lat2),λ1=toRad(lon1),λ2=toRad(lon2);
+  const y=Math.sin(λ2-λ1)*Math.cos(φ2);
+  const x=Math.cos(φ1)*Math.sin(φ2)-Math.sin(φ1)*Math.cos(φ2)*Math.cos(λ2-λ1);
+  return (toDeg(Math.atan2(y,x))+360)%360;
+}
+
+// --- ROUTE & CHECKPOINTS ---
+function makeRoute(){
+  if(selected.length<2){alert('Select at least 2 waypoints'); return;}
+  if(routeLayer) map.removeLayer(routeLayer);
+  checkpointMarkers.forEach(cp=>map.removeLayer(cp));
+  checkpointMarkers=[];
+
+  const latlngs = selected.map(id=>{ const w=waypoints.find(wp=>wp.id===id); return [w.lat,w.lon]; });
+  routeLayer=L.polyline(latlngs,{color:'#ff6600',weight:2}).addTo(map);
+
+  let cumulativeDistance=0;
+  let cumulativeTime=0;
+  const speed=parseFloat(document.getElementById('speedInput').value)||0;
+
+  routeSummaryDiv.innerHTML='';
+  for(let i=0;i<selected.length-1;i++){
+    const a=waypoints.find(w=>w.id===selected[i]);
+    const b=waypoints.find(w=>w.id===selected[i+1]);
+    const dist=haversineNM(a.lat,a.lon,b.lat,b.lon);
+    cumulativeDistance+=dist;
+    const time=speed>0 ? (dist/speed*60) : 0; // minutes
+    cumulativeTime+=time;
+    const brg=bearing(a.lat,a.lon,b.lat,b.lon);
+    routeSummaryDiv.innerHTML+=`<b>${a.name} → ${b.name}</b>: ${dist.toFixed(2)} NM, ${brg.toFixed(1)}°, Leg Time: ${time.toFixed(1)} min<br>`;
+  }
+  routeSummaryDiv.innerHTML+=`<b>Total:</b> ${cumulativeDistance.toFixed(2)} NM, ${cumulativeTime.toFixed(1)} min`;
+
+  routeLayer.on('click',function(e){
+    addCheckpoint(e.latlng);
+  });
+}
+
+function addCheckpoint(latlng){
+  let prevLatLng = selected.length>0 ? waypoints.find(w=>w.id===selected[0]) : map.getCenter();
+  if(checkpointMarkers.length>0){
+    prevLatLng = checkpointMarkers[checkpointMarkers.length-1].getLatLng();
+  }
+  const dist = haversineNM(prevLatLng.lat,prevLatLng.lng,latlng.lat,latlng.lng);
+  const speed = parseFloat(document.getElementById('speedInput').value)||0;
+  const eta = speed>0 ? (dist/speed*60).toFixed(1)+' min' : 'N/A';
+  const cpMarker = L.circleMarker([latlng.lat,latlng.lng],{radius:4,color:'#0a0',fillColor:'#0a0',fillOpacity:0.8})
+    .addTo(map)
+    .bindPopup(`Checkpoint<br>Distance: ${dist.toFixed(2)} NM<br>ETA @${speed} kn: ${eta}`)
+    .openPopup()
+    .bindTooltip(`Distance: ${dist.toFixed(2)} NM, ETA: ${eta}`, {permanent:true, direction:'top'});
+  checkpointMarkers.push(cpMarker);
+}
+
+function clearRoute(){
+  if(routeLayer) map.removeLayer(routeLayer);
+  routeLayer=null;
+  checkpointMarkers.forEach(cp=>map.removeLayer(cp));
+  checkpointMarkers=[];
+  selected=[];
+  routeSummaryDiv.innerHTML='';
+  Object.values(markers).forEach(m=>m.setStyle({color:'#f00',fillColor:'#f00'}));
+}
+
+// --- LOCAL STORAGE ---
+function saveLocal(){ localStorage.setItem('map_waypoints_v4',JSON.stringify(waypoints)); }
+function loadLocal(){
+  const data=localStorage.getItem('map_waypoints_v4');
+  if(!data)return;
+  try{ const arr=JSON.parse(data); arr.forEach(w=>addWaypoint(w.lat,w.lon,w.name)); }
+  catch(e){console.error(e);}
+}
+
+// --- EVENTS ---
+map.on('click',e=>{
+  coordsOut.textContent=`${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)}`;
+  addWaypoint(e.latlng.lat,e.latlng.lng);
+});
+
+document.getElementById('goBtn').onclick=()=>{
+  const lat=parseFloat(latIn.value),lon=parseFloat(lonIn.value);
+  if(isNaN(lat)||isNaN(lon)){alert('Invalid'); return;}
+  map.setView([lat,lon],Math.max(map.getZoom(),12));
+  addWaypoint(lat,lon,'Manual');
+};
+document.getElementById('routeBtn').onclick=makeRoute;
+document.getElementById('clearRouteBtn').onclick=clearRoute;
+document.getElementById('saveBtn').onclick=()=>{ saveLocal(); alert('Saved'); };
+document.getElementById('exportBtn').onclick=()=>{
+  const blob=new Blob([JSON.stringify(waypoints,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='waypoints.json'; a.click();
+};
+document.getElementById('importBtn').onclick=()=>{
+  try{ const arr=JSON.parse(document.getElementById('jsonArea').value); arr.forEach(w=>addWaypoint(w.lat,w.lon,w.name)); }
+  catch(e){alert('Invalid JSON');}
+};
+
+// INIT
+loadLocal();
+</script>
+</body>
+</html>
