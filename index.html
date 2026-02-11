@@ -93,14 +93,17 @@ body {
   margin: 2px;
 }
 
-input[type=text], textarea { 
-  width: 100%; 
+input[type=text], input[type=number], textarea { 
   box-sizing: border-box; 
   padding: 8px; 
   margin: 4px 0;
   border: 1px solid #ddd;
   border-radius: 4px;
   font-size: 14px;
+}
+
+textarea {
+  width: 100%;
 }
 
 .waypoint-list-container {
@@ -149,11 +152,23 @@ input[type=text], textarea {
   overflow-y: auto;
 }
 
-.jump-to-grid {
+.coord-input-group {
   display: grid;
-  grid-template-columns: 1fr 1fr auto;
-  gap: 8px;
-  align-items: end;
+  grid-template-columns: auto 1fr 1fr;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.coord-input-group label {
+  font-size: 13px;
+  font-weight: bold;
+  width: 30px;
+}
+
+.coord-input-group input {
+  margin: 0;
+  width: 100%;
 }
 
 .route-controls {
@@ -212,11 +227,17 @@ input[type=text], textarea {
     <!-- Jump To Section -->
     <div class="control-section">
       <h4>📍 Jump To Location</h4>
-      <div class="jump-to-grid">
-        <input id="latIn" placeholder="Latitude" type="text"/>
-        <input id="lonIn" placeholder="Longitude" type="text"/>
-        <a id="goBtn" class="btn">Go/Add</a>
+      <div class="coord-input-group">
+        <label>Lat:</label>
+        <input id="latDeg" placeholder="Deg" type="number"/>
+        <input id="latMin" placeholder="Min" type="number" step="0.001"/>
       </div>
+      <div class="coord-input-group">
+        <label>Lon:</label>
+        <input id="lonDeg" placeholder="Deg" type="number"/>
+        <input id="lonMin" placeholder="Min" type="number" step="0.001"/>
+      </div>
+      <a id="goBtn" class="btn" style="width: 100%; text-align: center; margin-top: 4px;">Go/Add</a>
     </div>
 
     <!-- Speed & Route Section -->
@@ -274,6 +295,27 @@ const listDiv = document.getElementById('list');
 const coordsOut = document.getElementById('coordsOut');
 const routeSummaryDiv = document.getElementById('routeSummary');
 
+// --- COORDINATE CONVERSION FUNCTIONS ---
+function decimalToDMS(decimal) {
+  const absolute = Math.abs(decimal);
+  const degrees = Math.floor(absolute);
+  const minutes = (absolute - degrees) * 60;
+  return { degrees, minutes };
+}
+
+function dmsToDecimal(degrees, minutes) {
+  const decimal = Math.abs(degrees) + (minutes / 60);
+  return degrees < 0 ? -decimal : decimal;
+}
+
+function formatCoordinate(decimal, isLatitude) {
+  const dms = decimalToDMS(decimal);
+  const direction = isLatitude 
+    ? (decimal >= 0 ? 'N' : 'S') 
+    : (decimal >= 0 ? 'E' : 'W');
+  return `${dms.degrees}° ${dms.minutes.toFixed(3)}' ${direction}`;
+}
+
 // --- FUNCTIONS ---
 function renderList(){
   listDiv.innerHTML = '';
@@ -284,9 +326,11 @@ function renderList(){
   waypoints.forEach(w=>{
     const div = document.createElement('div');
     div.className = 'waypoint-item';
+    const latStr = formatCoordinate(w.lat, true);
+    const lonStr = formatCoordinate(w.lon, false);
     div.innerHTML = `
       <b>${w.name}</b><br>
-      <span class="small">${w.lat.toFixed(5)}, ${w.lon.toFixed(5)}</span>
+      <span class="small">${latStr}, ${lonStr}</span>
       <div class="waypoint-actions">
         <a class="btn small" onclick="editWaypoint(${w.id})">✏️ Edit</a>
         <a class="btn small" style="background:#dc3545" onclick="deleteWaypoint(${w.id})">🗑️ Delete</a>
@@ -301,9 +345,11 @@ function addWaypoint(lat,lon,name){
   const id = Date.now()+Math.floor(Math.random()*999);
   const wp = {id,lat,lon,name:name||('WP-'+(waypoints.length+1))};
   waypoints.push(wp);
+  const latStr = formatCoordinate(lat, true);
+  const lonStr = formatCoordinate(lon, false);
   const marker = L.circleMarker([lat,lon],{radius:6,color:'#f00',fillColor:'#f00',fillOpacity:0.9})
     .addTo(map)
-    .bindPopup(`<b>${wp.name}</b><br>${lat.toFixed(5)}, ${lon.toFixed(5)}<br><a href="#" onclick="editWaypoint(${wp.id})">Edit</a>`);
+    .bindPopup(`<b>${wp.name}</b><br>${latStr}<br>${lonStr}<br><a href="#" onclick="editWaypoint(${wp.id})">Edit</a>`);
   marker.on('click',()=>selectWaypoint(wp.id));
   markers[id]=marker;
   renderList();
@@ -315,12 +361,14 @@ function editWaypoint(id){
   if(!wp)return;
   const newName = prompt('Rename waypoint:', wp.name);
   if(newName!==null && newName.trim()!==''){ wp.name = newName.trim(); }
-  const newLat = prompt('Change latitude:', wp.lat);
-  const newLon = prompt('Change longitude:', wp.lon);
+  const newLat = prompt('Change latitude (decimal):', wp.lat);
+  const newLon = prompt('Change longitude (decimal):', wp.lon);
   if(newLat && newLon && !isNaN(newLat) && !isNaN(newLon)){
     wp.lat=parseFloat(newLat); wp.lon=parseFloat(newLon);
+    const latStr = formatCoordinate(wp.lat, true);
+    const lonStr = formatCoordinate(wp.lon, false);
     markers[id].setLatLng([wp.lat,wp.lon])
-      .bindPopup(`<b>${wp.name}</b><br>${wp.lat.toFixed(5)}, ${wp.lon.toFixed(5)}<br><a href="#" onclick="editWaypoint(${wp.id})">Edit</a>`);
+      .bindPopup(`<b>${wp.name}</b><br>${latStr}<br>${lonStr}<br><a href="#" onclick="editWaypoint(${wp.id})">Edit</a>`);
   }
   renderList();
   saveLocal();
@@ -430,18 +478,35 @@ function loadLocal(){
 
 // --- EVENTS ---
 map.on('click',e=>{
-  coordsOut.textContent=`${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)}`;
+  const latStr = formatCoordinate(e.latlng.lat, true);
+  const lonStr = formatCoordinate(e.latlng.lng, false);
+  coordsOut.textContent=`${latStr}, ${lonStr}`;
   addWaypoint(e.latlng.lat,e.latlng.lng);
 });
 
 document.getElementById('goBtn').onclick=()=>{
-  const lat=parseFloat(latIn.value),lon=parseFloat(lonIn.value);
-  if(isNaN(lat)||isNaN(lon)){alert('Invalid coordinates'); return;}
+  const latDeg=parseFloat(document.getElementById('latDeg').value);
+  const latMin=parseFloat(document.getElementById('latMin').value);
+  const lonDeg=parseFloat(document.getElementById('lonDeg').value);
+  const lonMin=parseFloat(document.getElementById('lonMin').value);
+  
+  if(isNaN(latDeg)||isNaN(latMin)||isNaN(lonDeg)||isNaN(lonMin)){
+    alert('Invalid coordinates - please enter all fields'); 
+    return;
+  }
+  
+  const lat = dmsToDecimal(latDeg, latMin);
+  const lon = dmsToDecimal(lonDeg, lonMin);
+  
   map.setView([lat,lon],Math.max(map.getZoom(),12));
   addWaypoint(lat,lon,'Manual');
-  latIn.value = '';
-  lonIn.value = '';
+  
+  document.getElementById('latDeg').value = '';
+  document.getElementById('latMin').value = '';
+  document.getElementById('lonDeg').value = '';
+  document.getElementById('lonMin').value = '';
 };
+
 document.getElementById('routeBtn').onclick=makeRoute;
 document.getElementById('clearRouteBtn').onclick=clearRoute;
 document.getElementById('saveBtn').onclick=()=>{ saveLocal(); alert('Waypoints saved to browser storage!'); };
